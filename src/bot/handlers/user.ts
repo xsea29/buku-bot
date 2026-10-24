@@ -29,7 +29,7 @@ export function registerUserCommands(bot: Telegraf, { requests, sessions }: AppD
   bot.command(
     "email",
     privateOnly(async (ctx, user) => {
-      const pending = requests.findLatestAwaitingEmail(user.id);
+      const pending = await requests.findLatestAwaitingEmail(user.id);
       if (!pending) {
         await ctx.reply(messages.startWithRequest);
         return;

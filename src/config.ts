@@ -1,5 +1,4 @@
 import "dotenv/config";
-import path from "node:path";
 
 export interface Limits {
   titleMin: number;
@@ -11,7 +10,11 @@ export interface Limits {
 export interface Config {
   botToken: string;
   adminIds: readonly number[];
-  databasePath: string;
+  /** `file:data/buku.sqlite` for local dev, or a `libsql://…` Turso URL in production. */
+  databaseUrl: string;
+  databaseAuthToken: string | undefined;
+  /** Set by hosts like Render; when present the bot also serves a health endpoint. */
+  port: number | undefined;
   limits: Limits;
 }
 
@@ -55,10 +58,18 @@ export function loadConfig(env: Env = process.env): Config {
     throw new Error("TITLE_MIN_LENGTH cannot be greater than TITLE_MAX_LENGTH");
   }
 
+  const databaseUrl = env.DATABASE_URL?.trim() || "file:data/buku.sqlite";
+  const databaseAuthToken = env.DATABASE_AUTH_TOKEN?.trim() || undefined;
+  if (databaseUrl.startsWith("libsql:") && !databaseAuthToken) {
+    throw new Error("DATABASE_AUTH_TOKEN is required when DATABASE_URL is a libsql:// URL");
+  }
+
   return {
     botToken: requireString(env, "BOT_TOKEN"),
     adminIds: parseAdminIds(requireString(env, "ADMIN_TELEGRAM_ID")),
-    databasePath: path.resolve(env.DATABASE_PATH?.trim() || "data/buku.sqlite"),
+    databaseUrl,
+    databaseAuthToken,
+    port: env.PORT?.trim() ? optionalInt(env, "PORT", 0) : undefined,
     limits,
   };
 }

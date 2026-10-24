@@ -5,6 +5,7 @@ import { MemorySessionStore } from "./bot/sessions";
 import { loadConfig } from "./config";
 import { openDatabase } from "./db/database";
 import { RequestRepository } from "./db/request-repository";
+import { startHealthServer } from "./health";
 
 // api.telegram.org resolves to IPv4 and IPv6, and some networks black-hole the
 // IPv6 route. Prefer IPv4, and give each connection attempt longer than Node's
@@ -14,7 +15,8 @@ net.setDefaultAutoSelectFamilyAttemptTimeout(3000);
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const db = openDatabase(config.databasePath);
+  const db = await openDatabase(config.databaseUrl, config.databaseAuthToken);
+  const healthServer = config.port ? startHealthServer(config.port) : undefined;
 
   const bot = createBot({
     config,
@@ -24,6 +26,7 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: string) => {
     bot.stop(signal);
+    healthServer?.close();
     db.close();
   };
   process.once("SIGINT", () => shutdown("SIGINT"));

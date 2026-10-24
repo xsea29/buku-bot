@@ -33,7 +33,7 @@ export function registerAdminCommands(bot: Telegraf, { config, requests }: AppDe
     adminOnly(
       adminIds,
       async (ctx) => {
-        const rows = requests.listByStatus(
+        const rows = await requests.listByStatus(
           RequestStatus.PendingReview,
           limits.pendingListSize
         );
@@ -60,7 +60,7 @@ export function registerAdminCommands(bot: Telegraf, { config, requests }: AppDe
             return;
           }
 
-          const changed = requests.transition(id, RequestStatus.PendingReview, action.to);
+          const changed = await requests.transition(id, RequestStatus.PendingReview, action.to);
           await ctx.reply(changed ? action.reply(id) : messages.admin.notFound);
         },
         messages.admin.denied

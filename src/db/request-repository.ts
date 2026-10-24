@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Client } from "@libsql/client";
 import { RequestStatus, type BookRequest } from "../types";
 
 interface RequestRow {
@@ -11,97 +11,84 @@ interface RequestRow {
   created_at: string;
 }
 
-function toBookRequest(row: RequestRow): BookRequest {
+function toBookRequest(row: unknown): BookRequest {
+  const r = row as RequestRow;
   return {
-    id: row.id,
-    telegramUserId: row.telegram_user_id,
-    username: row.username,
-    bookTitle: row.book_title,
-    email: row.email,
-    status: row.status,
-    createdAt: row.created_at,
+    id: r.id,
+    telegramUserId: r.telegram_user_id,
+    username: r.username,
+    bookTitle: r.book_title,
+    email: r.email,
+    status: r.status,
+    createdAt: r.created_at,
   };
 }
 
 /** The only place that knows SQL. Swap this class to move to another datastore. */
 export class RequestRepository {
-  private readonly insert;
-  private readonly selectById;
-  private readonly selectLatestForUser;
-  private readonly selectByStatus;
-  private readonly setEmail;
-  private readonly setStatus;
-
-  constructor(db: Database.Database) {
-    this.insert = db.prepare(
-      `INSERT INTO requests (telegram_user_id, username, book_title, status)
-       VALUES (?, ?, ?, ?)`
-    );
-    this.selectById = db.prepare(`SELECT * FROM requests WHERE id = ?`);
-    this.selectLatestForUser = db.prepare(
-      `SELECT * FROM requests
-       WHERE telegram_user_id = ? AND status = ?
-       ORDER BY id DESC LIMIT 1`
-    );
-    this.selectByStatus = db.prepare(
-      `SELECT * FROM requests WHERE status = ? ORDER BY id ASC LIMIT ?`
-    );
-    this.setEmail = db.prepare(
-      `UPDATE requests SET email = ?, status = ?
-       WHERE id = ? AND telegram_user_id = ? AND status = ?`
-    );
-    this.setStatus = db.prepare(
-      `UPDATE requests SET status = ? WHERE id = ? AND status = ?`
-    );
-  }
+  constructor(private readonly db: Client) {}
 
   /** Creates a request that is waiting for the user's delivery email. */
-  create(input: {
+  async create(input: {
     telegramUserId: number;
     username: string | null;
     bookTitle: string;
-  }): number {
-    const result = this.insert.run(
-      input.telegramUserId,
-      input.username,
-      input.bookTitle,
-      RequestStatus.AwaitingEmail
-    );
+  }): Promise<number> {
+    const result = await this.db.execute({
+      sql: `INSERT INTO requests (telegram_user_id, username, book_title, status)
+            VALUES (?, ?, ?, ?)`,
+      args: [
+        input.telegramUserId,
+        input.username,
+        input.bookTitle,
+        RequestStatus.AwaitingEmail,
+      ],
+    });
     return Number(result.lastInsertRowid);
   }
 
-  findById(id: number): BookRequest | undefined {
-    const row = this.selectById.get(id) as RequestRow | undefined;
-    return row && toBookRequest(row);
+  async findById(id: number): Promise<BookRequest | undefined> {
+    const { rows } = await this.db.execute({
+      sql: `SELECT * FROM requests WHERE id = ?`,
+      args: [id],
+    });
+    return rows[0] && toBookRequest(rows[0]);
   }
 
-  findLatestAwaitingEmail(telegramUserId: number): BookRequest | undefined {
-    const row = this.selectLatestForUser.get(
-      telegramUserId,
-      RequestStatus.AwaitingEmail
-    ) as RequestRow | undefined;
-    return row && toBookRequest(row);
+  async findLatestAwaitingEmail(telegramUserId: number): Promise<BookRequest | undefined> {
+    const { rows } = await this.db.execute({
+      sql: `SELECT * FROM requests
+            WHERE telegram_user_id = ? AND status = ?
+            ORDER BY id DESC LIMIT 1`,
+      args: [telegramUserId, RequestStatus.AwaitingEmail],
+    });
+    return rows[0] && toBookRequest(rows[0]);
   }
 
-  listByStatus(status: RequestStatus, limit: number): BookRequest[] {
-    const rows = this.selectByStatus.all(status, limit) as RequestRow[];
+  async listByStatus(status: RequestStatus, limit: number): Promise<BookRequest[]> {
+    const { rows } = await this.db.execute({
+      sql: `SELECT * FROM requests WHERE status = ? ORDER BY id ASC LIMIT ?`,
+      args: [status, limit],
+    });
     return rows.map(toBookRequest);
   }
 
   /** Stores the email and moves the request to review. False if it wasn't the user's open request. */
-  attachEmail(id: number, telegramUserId: number, email: string): boolean {
-    const result = this.setEmail.run(
-      email,
-      RequestStatus.PendingReview,
-      id,
-      telegramUserId,
-      RequestStatus.AwaitingEmail
-    );
-    return result.changes > 0;
+  async attachEmail(id: number, telegramUserId: number, email: string): Promise<boolean> {
+    const result = await this.db.execute({
+      sql: `UPDATE requests SET email = ?, status = ?
+            WHERE id = ? AND telegram_user_id = ? AND status = ?`,
+      args: [email, RequestStatus.PendingReview, id, telegramUserId, RequestStatus.AwaitingEmail],
+    });
+    return result.rowsAffected > 0;
   }
 
   /** Moves a request between statuses only if it is currently in `from`. */
-  transition(id: number, from: RequestStatus, to: RequestStatus): boolean {
-    return this.setStatus.run(to, id, from).changes > 0;
+  async transition(id: number, from: RequestStatus, to: RequestStatus): Promise<boolean> {
+    const result = await this.db.execute({
+      sql: `UPDATE requests SET status = ? WHERE id = ? AND status = ?`,
+      args: [to, id, from],
+    });
+    return result.rowsAffected > 0;
   }
 }

@@ -29,7 +29,7 @@ export function registerConversation(bot: Telegraf, deps: AppDeps): void {
       return;
     }
 
-    const requestId = requests.create({
+    const requestId = await requests.create({
       telegramUserId: user.id,
       username: user.username ?? null,
       bookTitle: text,
@@ -51,8 +51,8 @@ export function registerConversation(bot: Telegraf, deps: AppDeps): void {
       return;
     }
 
-    const request = requests.findById(session.requestId);
-    if (!request || !requests.attachEmail(request.id, user.id, email)) {
+    const request = await requests.findById(session.requestId);
+    if (!request || !(await requests.attachEmail(request.id, user.id, email))) {
       sessions.delete(user.id);
       await ctx.reply(messages.restartRequest);
       return;

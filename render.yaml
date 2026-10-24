@@ -1,20 +1,19 @@
 services:
-  - type: worker
+  - type: web
     name: buku-bot
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 22
-      - key: DATABASE_PATH
-        value: /data/buku.sqlite
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_TELEGRAM_ID
         sync: false
-    disk:
-      name: buku-data
-      mountPath: /data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
