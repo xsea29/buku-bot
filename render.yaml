@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: buku-bot
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_PATH
+        value: /data/buku.sqlite
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_TELEGRAM_ID
+        sync: false
+    disk:
+      name: buku-data
+      mountPath: /data
+      sizeGB: 1
