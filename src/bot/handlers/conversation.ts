@@ -63,7 +63,7 @@ export function registerConversation(bot: Telegraf, deps: AppDeps): void {
     await notifyAdmins(
       ctx.telegram,
       config.adminIds,
-      messages.admin.newRequest(request)
+      messages.admin.newRequest({ ...request, email })
     );
   };
 

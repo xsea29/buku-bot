@@ -55,15 +55,19 @@ export const messages = {
         .map(
           (r) =>
             `#${r.id} — ${r.bookTitle}\n` +
+            `Email: ${r.email ?? "—"}\n` +
             `User ID: ${r.telegramUserId}` +
             (r.username ? ` (@${r.username})` : "") +
             `\nCreated: ${r.createdAt}`
         )
         .join("\n\n"),
 
-    newRequest: (request: Pick<BookRequest, "id" | "bookTitle" | "telegramUserId">) =>
+    newRequest: (
+      request: Pick<BookRequest, "id" | "bookTitle" | "telegramUserId" | "email">
+    ) =>
       `📚 New ebook request #${request.id}\n` +
       `Title: ${request.bookTitle}\n` +
+      `Email: ${request.email ?? "—"}\n` +
       `User ID: ${request.telegramUserId}\n` +
       `Review with /pending, then /approve ${request.id} or /reject ${request.id}.`,
   },
